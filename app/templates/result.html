@@ -1,6 +1,7 @@
 {% extends "base.html" %}
-{% block title %}{{ script_name }} - Result{% endblock %}
+{% block title %}{{ script_name }} - Apolownia Tools{% endblock %}
 {% block content %}
+<p class="section-label">Execution Result</p>
 <h2>{{ script_name }}</h2>
 {% if error %}
 <div class="status failure">Error: {{ error }}</div>
@@ -15,5 +16,5 @@
 <div class="status failure">{{ result.error }}</div>
 {% endif %}
 {% endif %}
-<a href="/" class="back-link">&larr; Back to scripts</a>
+<a href="/" class="back-link">&larr; Back to tools</a>
 {% endblock %}

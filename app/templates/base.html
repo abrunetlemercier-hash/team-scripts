@@ -3,20 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Team Scripts{% endblock %}</title>
+    <title>{% block title %}Apolownia Tools{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <header>
-        <h1><a href="/">Team Scripts</a></h1>
-        <p class="subtitle">Run automation scripts from the browser</p>
+        <a href="/" class="logo">
+            <img src="/static/logo.png" alt="Apolownia">
+            <span>Apolownia</span>
+        </a>
+        <nav>
+            <a href="/">Tools</a>
+        </nav>
     </header>
     <main>
         {% block content %}{% endblock %}
     </main>
     <footer>
+        <span class="footer-brand">Apolownia&trade;</span>
         <form method="post" action="/refresh" style="display:inline">
-            <button type="submit" class="link-btn">Refresh script list</button>
+            <button type="submit" class="link-btn">Refresh</button>
         </form>
     </footer>
 </body>
