@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Available Scripts ({{ scripts|length }})</h2>
+{% if scripts %}
+<div class="script-list">
+    {% for s in scripts %}
+    <div class="script-card">
+        <div class="script-info">
+            <h3>{{ s.name }}</h3>
+            <p>{{ s.description }}</p>
+        </div>
+        <form method="post" action="/run/{{ s.id }}">
+            <button type="submit" class="run-btn">Run</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="empty">No scripts found. Add Python files to the <code>scripts/</code> directory.</p>
+{% endif %}
+{% endblock %}

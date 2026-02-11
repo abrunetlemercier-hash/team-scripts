@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}{{ script_name }} - Result{% endblock %}
+{% block content %}
+<h2>{{ script_name }}</h2>
+{% if error %}
+<div class="status failure">Error: {{ error }}</div>
+{% elif result %}
+<div class="status {{ 'success' if result.success else 'failure' }}">
+    {{ "Completed successfully" if result.success else "Failed" }}
+</div>
+{% if result.output %}
+<pre class="output">{{ result.output }}</pre>
+{% endif %}
+{% if result.error %}
+<div class="status failure">{{ result.error }}</div>
+{% endif %}
+{% endif %}
+<a href="/" class="back-link">&larr; Back to scripts</a>
+{% endblock %}

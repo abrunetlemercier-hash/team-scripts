@@ -1,0 +1,139 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+    color: #1a1a1a;
+    background: #f8f9fa;
+}
+
+header {
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid #e0e0e0;
+}
+
+header h1 a {
+    color: #1a1a1a;
+    text-decoration: none;
+}
+
+.subtitle {
+    color: #666;
+    margin-top: 0.25rem;
+}
+
+h2 {
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+.script-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.script-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+}
+
+.script-card h3 {
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.script-card p {
+    color: #666;
+    font-size: 0.875rem;
+}
+
+.run-btn {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.run-btn:hover {
+    background: #1d4ed8;
+}
+
+.status {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+}
+
+.status.success {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status.failure {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.output {
+    background: #1e1e1e;
+    color: #d4d4d4;
+    padding: 1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
+.back-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.back-link:hover {
+    text-decoration: underline;
+}
+
+.empty {
+    color: #666;
+}
+
+footer {
+    margin-top: 3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e0e0e0;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: #2563eb;
+    cursor: pointer;
+    font-size: 0.875rem;
+    padding: 0;
+}
+
+.link-btn:hover {
+    text-decoration: underline;
+}
