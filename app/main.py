@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List
 
 from fastapi import FastAPI, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -78,10 +78,31 @@ async def run_script_html(request: Request, script_id: str):
             status_code=404,
         )
     result = await script.run()
+    download_url = None
+    if result.download_file:
+        # Store the path in a simple in-memory map keyed by filename
+        fname = Path(result.download_file).name
+        app.state.pending_downloads = getattr(app.state, "pending_downloads", {})
+        app.state.pending_downloads[fname] = result.download_file
+        download_url = f"/download/{fname}"
     return templates.TemplateResponse(
         "result.html",
-        {"request": request, "script_name": script.name, "result": result},
+        {
+            "request": request,
+            "script_name": script.name,
+            "result": result,
+            "download_url": download_url,
+        },
     )
+
+
+@app.get("/download/{filename}")
+async def download_file(filename: str):
+    downloads = getattr(app.state, "pending_downloads", {})
+    filepath = downloads.get(filename)
+    if not filepath or not Path(filepath).exists():
+        return HTMLResponse("File not found", status_code=404)
+    return FileResponse(filepath, filename=filename, media_type="application/zip")
 
 
 @app.post("/refresh")

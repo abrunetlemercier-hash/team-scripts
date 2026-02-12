@@ -820,22 +820,35 @@ def run_conversion(base_dir: Path) -> str:
 
 class KmlToGpkgScript:
     name = "KML to GeoPackage"
-    description = "Convert KML files (from data/kml/) to GeoPackage format with attribute extraction and Java province post-processing."
+    description = "Convert uploaded KML files to GeoPackage format with attribute extraction and Java province post-processing."
 
     async def run(self) -> ScriptResult:
+        import zipfile
         try:
             from app.config import KML_DIR
             KML_DIR.mkdir(parents=True, exist_ok=True)
             kml_files = list(KML_DIR.glob("*.kml"))
-            output = run_conversion(KML_DIR)
             if not kml_files:
-                output += f"\n[debug] KML_DIR resolved to: {KML_DIR.resolve()}"
-                contents = list(KML_DIR.iterdir()) if KML_DIR.exists() else []
-                output += f"\n[debug] Directory contents: {[f.name for f in contents]}"
+                return ScriptResult(
+                    success=False,
+                    output="",
+                    error="No KML files found. Upload .kml files first.",
+                )
+            output = run_conversion(KML_DIR)
+            # Zip all .gpkg files for download
+            gpkg_dir = KML_DIR / "gpkg_output"
+            gpkg_files = sorted(gpkg_dir.glob("*.gpkg")) if gpkg_dir.exists() else []
+            zip_path = None
+            if gpkg_files:
+                zip_path = str(KML_DIR / "geopackages.zip")
+                with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for gf in gpkg_files:
+                        zf.write(gf, gf.name)
+                output += f"\n{len(gpkg_files)} GeoPackage file(s) ready for download."
             return ScriptResult(
-                success=bool(kml_files),
+                success=True,
                 output=output,
-                error=None if kml_files else "No KML files found. Upload .kml files first.",
+                download_file=zip_path,
             )
         except Exception as e:
             return ScriptResult(success=False, output="", error=str(e))

@@ -11,3 +11,4 @@ class RunResponse(BaseModel):
     success: bool
     output: str
     error: str | None = None
+    download_url: str | None = None

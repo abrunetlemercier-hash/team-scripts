@@ -177,6 +177,13 @@ h2 {
     letter-spacing: 0;
 }
 
+.download-btn {
+    display: inline-block;
+    margin-top: 1rem;
+    text-decoration: none;
+    text-align: center;
+}
+
 .back-link {
     display: inline-block;
     margin-top: 1rem;

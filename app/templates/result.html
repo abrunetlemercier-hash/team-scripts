@@ -15,6 +15,9 @@
 {% if result.error %}
 <div class="status failure">{{ result.error }}</div>
 {% endif %}
+{% if download_url %}
+<a href="{{ download_url }}" class="run-btn download-btn">Download GeoPackages (.zip)</a>
+{% endif %}
 {% endif %}
 <a href="/" class="back-link">&larr; Back to tools</a>
 {% endblock %}
