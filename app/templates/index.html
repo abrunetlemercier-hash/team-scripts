@@ -22,11 +22,11 @@
 
 <section class="upload-section">
     <p class="section-label">KML Files</p>
-    <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form">
-        <label class="upload-area" id="drop-zone">
-            <input type="file" name="file" accept=".kml" required hidden>
-            <span class="upload-text">Drop a .kml file here or click to browse</span>
-        </label>
+    <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form" id="upload-form">
+        <div class="upload-area" id="drop-zone">
+            <input type="file" name="files" accept=".kml" multiple id="file-input">
+            <span class="upload-text" id="upload-text">Drop .kml files here or click to browse</span>
+        </div>
         <button type="submit" class="run-btn">Upload</button>
     </form>
     {% if kml_files %}
@@ -47,21 +47,28 @@
 
 <script>
 const zone = document.getElementById('drop-zone');
-const input = zone.querySelector('input[type="file"]');
-const text = zone.querySelector('.upload-text');
-zone.addEventListener('click', () => input.click());
+const input = document.getElementById('file-input');
+const text = document.getElementById('upload-text');
+
 zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
 zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
 zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.classList.remove('drag-over');
-    if (e.dataTransfer.files.length) {
-        input.files = e.dataTransfer.files;
-        text.textContent = e.dataTransfer.files[0].name;
+    const dt = new DataTransfer();
+    for (const f of e.dataTransfer.files) {
+        if (f.name.toLowerCase().endsWith('.kml')) dt.items.add(f);
+    }
+    if (dt.files.length) {
+        input.files = dt.files;
+        text.textContent = dt.files.length === 1
+            ? dt.files[0].name
+            : dt.files.length + ' files selected';
     }
 });
 input.addEventListener('change', () => {
-    if (input.files.length) text.textContent = input.files[0].name;
+    if (input.files.length === 1) text.textContent = input.files[0].name;
+    else if (input.files.length > 1) text.textContent = input.files.length + ' files selected';
 });
 </script>
 {% endblock %}

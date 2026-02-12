@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import List
 
 from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -44,13 +45,14 @@ async def homepage(request: Request):
     )
 
 
-@app.post("/upload", response_class=HTMLResponse)
-async def upload_kml(file: UploadFile = File(...)):
-    if not file.filename or not file.filename.lower().endswith(".kml"):
-        return RedirectResponse(url="/", status_code=303)
-    dest = KML_DIR / file.filename
-    content = await file.read()
-    dest.write_bytes(content)
+@app.post("/upload")
+async def upload_kml(files: List[UploadFile] = File(...)):
+    KML_DIR.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        if f.filename and f.filename.lower().endswith(".kml"):
+            dest = KML_DIR / f.filename
+            content = await f.read()
+            dest.write_bytes(content)
     return RedirectResponse(url="/", status_code=303)
 
 

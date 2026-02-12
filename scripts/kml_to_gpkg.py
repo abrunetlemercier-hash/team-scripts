@@ -817,8 +817,14 @@ def run_conversion(base_dir: Path) -> str:
 
 # ─── Team Scripts Plugin ──────────────────────────────────────────────────────
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-KML_DIR = PROJECT_ROOT / "data" / "kml"
+
+def _get_kml_dir() -> Path:
+    """Resolve KML directory from app config or fallback."""
+    try:
+        from app.main import KML_DIR
+        return KML_DIR
+    except ImportError:
+        return Path(__file__).resolve().parent.parent / "data" / "kml"
 
 
 class KmlToGpkgScript:
@@ -827,13 +833,14 @@ class KmlToGpkgScript:
 
     async def run(self) -> ScriptResult:
         try:
-            KML_DIR.mkdir(parents=True, exist_ok=True)
-            output = run_conversion(KML_DIR)
-            has_kml = any(KML_DIR.glob("*.kml"))
+            kml_dir = _get_kml_dir()
+            kml_dir.mkdir(parents=True, exist_ok=True)
+            output = run_conversion(kml_dir)
+            has_kml = any(kml_dir.glob("*.kml"))
             return ScriptResult(
                 success=True,
                 output=output,
-                error=None if has_kml else "No KML files found. Place .kml files in data/kml/ to convert them.",
+                error=None if has_kml else "No KML files found. Upload .kml files first.",
             )
         except Exception as e:
             return ScriptResult(success=False, output="", error=str(e))
@@ -843,5 +850,6 @@ script = KmlToGpkgScript()
 
 
 if __name__ == "__main__":
-    KML_DIR.mkdir(parents=True, exist_ok=True)
-    print(run_conversion(KML_DIR))
+    kml_dir = _get_kml_dir()
+    kml_dir.mkdir(parents=True, exist_ok=True)
+    print(run_conversion(kml_dir))

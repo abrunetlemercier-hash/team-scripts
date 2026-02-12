@@ -216,6 +216,7 @@ h2 {
     border: 1px dashed #000;
     cursor: pointer;
     transition: background 0.2s;
+    position: relative;
 }
 
 .upload-area:hover,
@@ -223,10 +224,18 @@ h2 {
     background: #f5f5f5;
 }
 
+.upload-area input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
 .upload-text {
     font-size: 0.8rem;
     color: #555;
     letter-spacing: 0.03em;
+    pointer-events: none;
 }
 
 .file-list {
