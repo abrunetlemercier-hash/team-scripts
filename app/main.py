@@ -7,12 +7,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.config import KML_DIR, PROJECT_ROOT
 from app.models import RunResponse, ScriptInfo
 from app.registry import discover_scripts, get_all_scripts, get_script
 
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent
-KML_DIR = PROJECT_ROOT / "data" / "kml"
 
 
 @asynccontextmanager

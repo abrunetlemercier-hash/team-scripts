@@ -818,29 +818,24 @@ def run_conversion(base_dir: Path) -> str:
 # ─── Team Scripts Plugin ──────────────────────────────────────────────────────
 
 
-def _get_kml_dir() -> Path:
-    """Resolve KML directory from app config or fallback."""
-    try:
-        from app.main import KML_DIR
-        return KML_DIR
-    except ImportError:
-        return Path(__file__).resolve().parent.parent / "data" / "kml"
-
-
 class KmlToGpkgScript:
     name = "KML to GeoPackage"
     description = "Convert KML files (from data/kml/) to GeoPackage format with attribute extraction and Java province post-processing."
 
     async def run(self) -> ScriptResult:
         try:
-            kml_dir = _get_kml_dir()
-            kml_dir.mkdir(parents=True, exist_ok=True)
-            output = run_conversion(kml_dir)
-            has_kml = any(kml_dir.glob("*.kml"))
+            from app.config import KML_DIR
+            KML_DIR.mkdir(parents=True, exist_ok=True)
+            kml_files = list(KML_DIR.glob("*.kml"))
+            output = run_conversion(KML_DIR)
+            if not kml_files:
+                output += f"\n[debug] KML_DIR resolved to: {KML_DIR.resolve()}"
+                contents = list(KML_DIR.iterdir()) if KML_DIR.exists() else []
+                output += f"\n[debug] Directory contents: {[f.name for f in contents]}"
             return ScriptResult(
-                success=True,
+                success=bool(kml_files),
                 output=output,
-                error=None if has_kml else "No KML files found. Upload .kml files first.",
+                error=None if kml_files else "No KML files found. Upload .kml files first.",
             )
         except Exception as e:
             return ScriptResult(success=False, output="", error=str(e))
@@ -850,6 +845,6 @@ script = KmlToGpkgScript()
 
 
 if __name__ == "__main__":
-    kml_dir = _get_kml_dir()
-    kml_dir.mkdir(parents=True, exist_ok=True)
-    print(run_conversion(kml_dir))
+    from app.config import KML_DIR
+    KML_DIR.mkdir(parents=True, exist_ok=True)
+    print(run_conversion(KML_DIR))
