@@ -823,10 +823,20 @@ class KmlToGpkgScript:
     description = "Convert uploaded KML files to GeoPackage format with attribute extraction and Java province post-processing."
 
     async def run(self) -> ScriptResult:
+        import shutil
         import zipfile
         try:
             from app.config import KML_DIR
             KML_DIR.mkdir(parents=True, exist_ok=True)
+
+            # Clean old output from previous runs
+            gpkg_dir = KML_DIR / "gpkg_output"
+            if gpkg_dir.exists():
+                shutil.rmtree(gpkg_dir)
+            old_zip = KML_DIR / "geopackages.zip"
+            if old_zip.exists():
+                old_zip.unlink()
+
             kml_files = list(KML_DIR.glob("*.kml"))
             if not kml_files:
                 return ScriptResult(
@@ -835,8 +845,8 @@ class KmlToGpkgScript:
                     error="No KML files found. Upload .kml files first.",
                 )
             output = run_conversion(KML_DIR)
+
             # Zip all .gpkg files for download
-            gpkg_dir = KML_DIR / "gpkg_output"
             gpkg_files = sorted(gpkg_dir.glob("*.gpkg")) if gpkg_dir.exists() else []
             zip_path = None
             if gpkg_files:
@@ -845,6 +855,13 @@ class KmlToGpkgScript:
                     for gf in gpkg_files:
                         zf.write(gf, gf.name)
                 output += f"\n{len(gpkg_files)} GeoPackage file(s) ready for download."
+
+            # Clean up: remove uploaded KML files and intermediate gpkg dir
+            for kf in kml_files:
+                kf.unlink()
+            if gpkg_dir.exists():
+                shutil.rmtree(gpkg_dir)
+
             return ScriptResult(
                 success=True,
                 output=output,
