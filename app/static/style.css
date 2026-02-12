@@ -143,6 +143,18 @@ h2 {
     color: #000;
 }
 
+.run-btn:disabled {
+    background: #ccc;
+    border-color: #ccc;
+    color: #888;
+    cursor: not-allowed;
+}
+
+.run-btn:disabled:hover {
+    background: #ccc;
+    color: #888;
+}
+
 /* ─── Result page ─── */
 
 .status {

@@ -11,7 +11,7 @@
             <p>{{ s.description }}</p>
         </div>
         <form method="post" action="/run/{{ s.id }}">
-            <button type="submit" class="run-btn">Run</button>
+            <button type="submit" class="run-btn" {% if not kml_files %}disabled{% endif %}>Run</button>
         </form>
     </div>
     {% endfor %}
@@ -22,12 +22,11 @@
 
 <section class="upload-section">
     <p class="section-label">KML Files</p>
-    <form method="post" action="/upload" enctype="multipart/form-data" class="upload-form" id="upload-form">
+    <form method="post" action="/upload" enctype="multipart/form-data" id="upload-form">
         <div class="upload-area" id="drop-zone">
             <input type="file" name="files" accept=".kml" multiple id="file-input">
             <span class="upload-text" id="upload-text">Drop .kml files here or click to browse</span>
         </div>
-        <button type="submit" class="run-btn">Upload</button>
     </form>
     {% if kml_files %}
     <div class="file-list">
@@ -46,6 +45,7 @@
 </section>
 
 <script>
+const form = document.getElementById('upload-form');
 const zone = document.getElementById('drop-zone');
 const input = document.getElementById('file-input');
 const text = document.getElementById('upload-text');
@@ -61,14 +61,15 @@ zone.addEventListener('drop', e => {
     }
     if (dt.files.length) {
         input.files = dt.files;
-        text.textContent = dt.files.length === 1
-            ? dt.files[0].name
-            : dt.files.length + ' files selected';
+        text.textContent = 'Uploading...';
+        form.submit();
     }
 });
 input.addEventListener('change', () => {
-    if (input.files.length === 1) text.textContent = input.files[0].name;
-    else if (input.files.length > 1) text.textContent = input.files.length + ' files selected';
+    if (input.files.length) {
+        text.textContent = 'Uploading...';
+        form.submit();
+    }
 });
 </script>
 {% endblock %}
