@@ -64,10 +64,21 @@ RENAME_MAP = {
     "20260126_East_Java": "East Java",
     "20260126_Central_Java": "Central Java",
     "20260126_West_Java": "West Java",
+    "Final_Cirebon.shp": "Cirebon",
+    "Sumenep_Final.shp": "Sumenep",
 }
 
 # KML stems that get the full Java post-processing
 JAVA_STEMS = set(RENAME_MAP.keys())
+
+# Province and District mapping for district-level files
+DISTRICT_FILE_MAP = {
+    "Final_Cirebon.shp": {"Province": "West Java", "District": "Cirebon"},
+    "Sumenep_Final.shp": {"Province": "East Java", "District": "Sumenep"},
+}
+
+# Stems that get district-level post-processing
+DISTRICT_STEMS = set(DISTRICT_FILE_MAP.keys())
 
 # ─── Geometry helpers ────────────────────────────────────────────────────────
 
@@ -629,6 +640,145 @@ def postprocess_java_file(gpkg_path, province, kml_path):
     conn.close()
 
 
+def postprocess_district_file(gpkg_path, province, district, kml_path):
+    """Apply post-processing rules to district-level files (Cirebon, Sumenep).
+
+    Rules:
+      1. Province: fill with province name if NULL.
+      2. District: fill with district name if NULL.
+      3. Status: "Private" if original name contains "private"/"privé", else "APL".
+         Keep existing Status from description if present (e.g. "Additional").
+      4. Name: rename all polygons → district name.
+      5. Land_Type: extract from original name if hint present (Pond/Coastal),
+         fix typo "Ponds" → "Pond". Do NOT extrapolate — leave NULL if unknown.
+      6. Sub_Distri, Village: fill NULLs by nearest neighbor.
+      7. Recalculate Longitude, Latitude, Area_Ha from geometry.
+    """
+    features = parse_kml(str(kml_path))
+    originals = []
+    for attrs, _ in features:
+        orig_name = attrs.get("Name", "") or ""
+        orig_lt = (attrs.get("Land_Type") or "").strip() or None
+        orig_status = (attrs.get("Status") or "").strip() or None
+        originals.append((orig_name, orig_lt, orig_status))
+
+    conn = sqlite3.connect(str(gpkg_path))
+
+    # ── 0. Ensure required columns exist (may be missing if no feature had the field) ──
+    existing_cols = {c[1] for c in conn.execute("PRAGMA table_info(features)").fetchall()}
+    required_cols = [
+        "Name", "Province", "District", "Sub_Distri", "Village",
+        "Land_Type", "Status", "Code", "NRegen_Typ", "ARR_type", "Accretion",
+    ]
+    for col in required_cols:
+        if col not in existing_cols:
+            conn.execute(f'ALTER TABLE features ADD COLUMN "{col}" TEXT')
+
+    # ── 1. Province ──
+    conn.execute("UPDATE features SET Province = ? WHERE Province IS NULL", (province,))
+
+    # ── 2. District ──
+    conn.execute("UPDATE features SET District = ? WHERE District IS NULL", (district,))
+
+    # ── 3. Status from original name ──
+    for i, (orig_name, _, orig_status) in enumerate(originals):
+        fid = i + 1
+        if orig_status:
+            # Keep status from description (e.g. "Additional")
+            conn.execute("UPDATE features SET Status = ? WHERE fid = ?",
+                         (orig_status, fid))
+        elif "private" in orig_name.lower() or "privé" in orig_name.lower():
+            conn.execute("UPDATE features SET Status = 'Private' WHERE fid = ?", (fid,))
+        else:
+            conn.execute("UPDATE features SET Status = 'APL' WHERE fid = ?", (fid,))
+
+    # ── 4. Rename all polygon Names → district name ──
+    conn.execute("UPDATE features SET Name = ?", (district,))
+
+    # ── 5. Land_Type: extract from original name if NULL ──
+    for i, (orig_name, orig_lt, _) in enumerate(originals):
+        fid = i + 1
+        name_lower = orig_name.lower()
+        if orig_lt is None:
+            if "pond" in name_lower:
+                conn.execute('UPDATE features SET Land_Type = ? WHERE fid = ?',
+                             ("Pond", fid))
+            elif "coastal" in name_lower:
+                conn.execute('UPDATE features SET Land_Type = ? WHERE fid = ?',
+                             ("Coastal", fid))
+            # else: leave NULL — no extrapolation
+
+    # Fix typo
+    conn.execute("UPDATE features SET Land_Type = 'Pond' WHERE Land_Type = 'Ponds'")
+
+    # ── 5b. ARR_type: map R → Reforestation, A → Afforestation ──
+    conn.execute("UPDATE features SET ARR_type = 'Reforestation' WHERE UPPER(TRIM(ARR_type)) = 'R'")
+    conn.execute("UPDATE features SET ARR_type = 'Afforestation' WHERE UPPER(TRIM(ARR_type)) = 'A'")
+
+    conn.commit()
+
+    # ── 6. Fill NULL Sub_Distri, Village by nearest neighbor ──
+    for field in ["Sub_Distri", "Village"]:
+        n = fill_nulls_by_nearest(conn, field)
+        if n > 0:
+            print(f"    {field}: {n} NULLs filled by nearest neighbor")
+
+    conn.commit()
+
+    # ── 7. Recalculate Longitude, Latitude, Area_Ha from geometry ──
+    recalc_count = 0
+    for i, (attrs, polygon_rings) in enumerate(features):
+        fid = i + 1
+        if not polygon_rings:
+            continue
+
+        all_exterior = [rings[0] for rings in polygon_rings if rings]
+        if len(all_exterior) == 1:
+            cx, cy = polygon_centroid([all_exterior[0]])
+        else:
+            total_a, cx, cy = 0, 0, 0
+            for ext in all_exterior:
+                c = polygon_centroid([ext])
+                a = polygon_area_utm([ext])
+                cx += c[0] * a
+                cy += c[1] * a
+                total_a += a
+            if total_a > 0:
+                cx /= total_a
+                cy /= total_a
+
+        longitude = round(cx, 6)
+        latitude = round(cy, 6)
+        area_ha = round(sum(polygon_area_utm(rings) for rings in polygon_rings) / 10000.0, 4)
+
+        conn.execute(
+            "UPDATE features SET Longitude = ?, Latitude = ?, Area_Ha = ? WHERE fid = ?",
+            (longitude, latitude, area_ha, fid))
+        recalc_count += 1
+
+    conn.commit()
+    print(f"    Recalculated Longitude/Latitude/Area_Ha for {recalc_count} features")
+
+    # ── Report ──
+    total = conn.execute("SELECT COUNT(*) FROM features").fetchone()[0]
+    prv = conn.execute("SELECT COUNT(*) FROM features WHERE Status='Private'").fetchone()[0]
+    apl = conn.execute("SELECT COUNT(*) FROM features WHERE Status='APL'").fetchone()[0]
+    other_status = conn.execute(
+        "SELECT COUNT(*) FROM features WHERE Status IS NOT NULL AND Status != 'Private' AND Status != 'APL'"
+    ).fetchone()[0]
+    lt_null = conn.execute("SELECT COUNT(*) FROM features WHERE Land_Type IS NULL").fetchone()[0]
+    nulls = {}
+    for col in ["Province", "District", "Sub_Distri", "Village"]:
+        n = conn.execute(f'SELECT COUNT(*) FROM features WHERE "{col}" IS NULL').fetchone()[0]
+        if n > 0:
+            nulls[col] = n
+    print(f"    {total} features | Private={prv}, APL={apl}, Other={other_status} | Land_Type NULL={lt_null}")
+    if nulls:
+        print(f"    Remaining NULLs: {nulls}")
+
+    conn.close()
+
+
 # ─── Merged GPKG builder ─────────────────────────────────────────────────────
 
 def create_merged_gpkg(output_path, source_gpkgs):
@@ -779,14 +929,14 @@ def run_conversion(base_dir: Path) -> str:
         except Exception as e:
             log(f"  Error: {e}\n")
 
-    # ── Step 2: Post-process the 3 Java files ──
+    # ── Step 2: Post-process the 3 Java province files ──
     log("=" * 60)
     log("Post-processing Java province files\n")
 
     java_gpkgs = []
     for kml_path in kml_files:
         name = kml_path.stem
-        if name not in JAVA_STEMS:
+        if name not in JAVA_STEMS or name in DISTRICT_STEMS:
             continue
         province = RENAME_MAP[name]
         gpkg_path = output_dir / f"{province}.gpkg"
@@ -794,16 +944,38 @@ def run_conversion(base_dir: Path) -> str:
             continue
 
         log(f"  Post-processing: {province}.gpkg")
-        # Redirect prints from postprocess_java_file into our buffer
         old_stdout = sys.stdout
         sys.stdout = buf
         postprocess_java_file(gpkg_path, province, kml_path)
         sys.stdout = old_stdout
         log()
+        java_gpkgs.append((gpkg_path, province))
 
-    # ── Step 3: Create merged GPKG (Java files only) ──
+    # ── Step 2b: Post-process district-level files (Cirebon, Sumenep, etc.) ──
     log("=" * 60)
-    log("Creating merged GeoPackage: ALL_merged.gpkg (East/Central/West Java only)\n")
+    log("Post-processing district-level files\n")
+
+    for kml_path in kml_files:
+        name = kml_path.stem
+        if name not in DISTRICT_STEMS:
+            continue
+        info = DISTRICT_FILE_MAP[name]
+        clean_name = RENAME_MAP[name]
+        gpkg_path = output_dir / f"{clean_name}.gpkg"
+        if not gpkg_path.exists():
+            continue
+
+        log(f"  Post-processing: {clean_name}.gpkg (Province={info['Province']}, District={info['District']})")
+        old_stdout = sys.stdout
+        sys.stdout = buf
+        postprocess_district_file(gpkg_path, info["Province"], info["District"], kml_path)
+        sys.stdout = old_stdout
+        log()
+        java_gpkgs.append((gpkg_path, clean_name))
+
+    # ── Step 3: Create merged GPKG (all processed files) ──
+    log("=" * 60)
+    log("Creating merged GeoPackage: ALL_merged.gpkg\n")
 
     if java_gpkgs:
         merged_path = output_dir / "ALL_merged.gpkg"
