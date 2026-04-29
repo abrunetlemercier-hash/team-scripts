@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 *.pyo
+.DS_Store
 .env
 .venv/
 venv/
@@ -9,3 +10,5 @@ dist/
 build/
 .mypy_cache/
 .ruff_cache/
+data/
+scripts/reprocess_additional.py

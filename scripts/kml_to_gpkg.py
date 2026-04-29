@@ -66,10 +66,16 @@ RENAME_MAP = {
     "20260126_West_Java": "West Java",
     "Final_Cirebon.shp": "Cirebon",
     "Sumenep_Final.shp": "Sumenep",
+    "Additional_Polygons_in_West_Java.shp": "Additional West Java",
+    "Additional_Polygons_in_Central Java": "Additional Central Java",
 }
 
-# KML stems that get the full Java post-processing
-JAVA_STEMS = set(RENAME_MAP.keys())
+# KML stems that get the full Java province post-processing
+JAVA_STEMS = {
+    "20260126_East_Java",
+    "20260126_Central_Java",
+    "20260126_West_Java",
+}
 
 # Province and District mapping for district-level files
 DISTRICT_FILE_MAP = {
@@ -79,6 +85,15 @@ DISTRICT_FILE_MAP = {
 
 # Stems that get district-level post-processing
 DISTRICT_STEMS = set(DISTRICT_FILE_MAP.keys())
+
+# Additional polygon files need the same geometry recalculation as district files,
+# plus attribute parsing from names such as "(coastal / public / R)".
+ADDITIONAL_FILE_MAP = {
+    "Additional_Polygons_in_West_Java.shp": {"Province": "West Java", "District": "Cirebon"},
+    "Additional_Polygons_in_Central Java": {"Province": "Central Java", "District": "Brebes"},
+}
+
+ADDITIONAL_STEMS = set(ADDITIONAL_FILE_MAP.keys())
 
 # ─── Geometry helpers ────────────────────────────────────────────────────────
 
@@ -583,6 +598,15 @@ def postprocess_java_file(gpkg_path, province, kml_path):
 
     conn = sqlite3.connect(str(gpkg_path))
 
+    existing_cols = {c[1] for c in conn.execute("PRAGMA table_info(features)").fetchall()}
+    required_cols = [
+        "Name", "Province", "District", "Sub_Distri", "Village",
+        "Land_Type", "Status", "Code", "NRegen_Typ", "ARR_type", "Accretion",
+    ]
+    for col in required_cols:
+        if col not in existing_cols:
+            conn.execute(f'ALTER TABLE features ADD COLUMN "{col}" TEXT')
+
     # ── 1. Land_Type: extract from original name where source was NULL ──
     for i, (orig_name, orig_lt) in enumerate(originals):
         fid = i + 1
@@ -760,6 +784,147 @@ def postprocess_district_file(gpkg_path, province, district, kml_path):
     print(f"    Recalculated Longitude/Latitude/Area_Ha for {recalc_count} features")
 
     # ── Report ──
+    total = conn.execute("SELECT COUNT(*) FROM features").fetchone()[0]
+    prv = conn.execute("SELECT COUNT(*) FROM features WHERE Status='Private'").fetchone()[0]
+    apl = conn.execute("SELECT COUNT(*) FROM features WHERE Status='APL'").fetchone()[0]
+    other_status = conn.execute(
+        "SELECT COUNT(*) FROM features WHERE Status IS NOT NULL AND Status != 'Private' AND Status != 'APL'"
+    ).fetchone()[0]
+    lt_null = conn.execute("SELECT COUNT(*) FROM features WHERE Land_Type IS NULL").fetchone()[0]
+    nulls = {}
+    for col in ["Province", "District", "Sub_Distri", "Village"]:
+        n = conn.execute(f'SELECT COUNT(*) FROM features WHERE "{col}" IS NULL').fetchone()[0]
+        if n > 0:
+            nulls[col] = n
+    print(f"    {total} features | Private={prv}, APL={apl}, Other={other_status} | Land_Type NULL={lt_null}")
+    if nulls:
+        print(f"    Remaining NULLs: {nulls}")
+
+    conn.close()
+
+
+def parse_additional_polygon_name(name):
+    """Extract attributes from Additional Polygon names."""
+    attrs = {}
+    if not name:
+        return attrs
+
+    name_lower = name.lower().strip()
+    paren_match = re.search(r'\(([^)]+)\)', name)
+    if paren_match:
+        parts = [p.strip() for p in paren_match.group(1).split('/')]
+
+        if parts:
+            land_type = parts[0].lower()
+            if "pond" in land_type:
+                attrs["Land_Type"] = "Pond"
+            elif "coast" in land_type:
+                attrs["Land_Type"] = "Coastal"
+
+        if len(parts) >= 2:
+            status = parts[1].lower()
+            if "private" in status or "privé" in status:
+                attrs["Status"] = "Private"
+            elif "public" in status:
+                attrs["Status"] = "APL"
+            elif "kawasan" in status:
+                attrs["Status"] = "Kawasan Hutan"
+
+        if len(parts) >= 3:
+            arr_type = parts[2].strip().upper()
+            if arr_type == "R":
+                attrs["ARR_type"] = "Reforestation"
+            elif arr_type == "A":
+                attrs["ARR_type"] = "Afforestation"
+    else:
+        if "kawasan hutan" in name_lower:
+            attrs["Status"] = "Kawasan Hutan"
+        elif "private" in name_lower or "privé" in name_lower:
+            attrs["Status"] = "Private"
+
+    return attrs
+
+
+def postprocess_additional_file(gpkg_path, province, district, clean_name, kml_path):
+    """Apply post-processing rules to Additional Polygons files."""
+    features = parse_kml(str(kml_path))
+    originals = []
+    for attrs, _ in features:
+        originals.append((attrs.get("Name", "") or "", attrs))
+
+    conn = sqlite3.connect(str(gpkg_path))
+
+    existing_cols = {c[1] for c in conn.execute("PRAGMA table_info(features)").fetchall()}
+    required_cols = [
+        "Name", "Province", "District", "Sub_Distri", "Village",
+        "Land_Type", "Status", "Code", "NRegen_Typ", "ARR_type", "Accretion",
+    ]
+    for col in required_cols:
+        if col not in existing_cols:
+            conn.execute(f'ALTER TABLE features ADD COLUMN "{col}" TEXT')
+
+    for i, (orig_name, orig_attrs) in enumerate(originals):
+        fid = i + 1
+        parsed = parse_additional_polygon_name(orig_name)
+
+        if not (orig_attrs.get("Province") or "").strip():
+            conn.execute("UPDATE features SET Province = ? WHERE fid = ?", (province, fid))
+        if not (orig_attrs.get("District") or "").strip():
+            conn.execute("UPDATE features SET District = ? WHERE fid = ?", (district, fid))
+
+        for col in ["Land_Type", "Status", "ARR_type"]:
+            existing = (orig_attrs.get(col) or "").strip()
+            if not existing and col in parsed:
+                conn.execute(f'UPDATE features SET "{col}" = ? WHERE fid = ?', (parsed[col], fid))
+
+        existing_status = (orig_attrs.get("Status") or "").strip()
+        if not existing_status and "Status" not in parsed:
+            conn.execute("UPDATE features SET Status = 'APL' WHERE fid = ?", (fid,))
+
+    conn.execute("UPDATE features SET Name = ?", (clean_name,))
+    conn.execute("UPDATE features SET Land_Type = 'Pond' WHERE Land_Type = 'Ponds'")
+    conn.execute("UPDATE features SET Land_Type = 'Coastal' WHERE LOWER(Land_Type) = 'costal'")
+    conn.execute("UPDATE features SET ARR_type = 'Reforestation' WHERE UPPER(TRIM(ARR_type)) = 'R'")
+    conn.execute("UPDATE features SET ARR_type = 'Afforestation' WHERE UPPER(TRIM(ARR_type)) = 'A'")
+    conn.commit()
+
+    for field in ["Sub_Distri", "Village"]:
+        n = fill_nulls_by_nearest(conn, field)
+        if n > 0:
+            print(f"    {field}: {n} NULLs filled by nearest neighbor")
+
+    recalc_count = 0
+    for i, (_, polygon_rings) in enumerate(features):
+        fid = i + 1
+        if not polygon_rings:
+            continue
+
+        all_exterior = [rings[0] for rings in polygon_rings if rings]
+        if len(all_exterior) == 1:
+            cx, cy = polygon_centroid([all_exterior[0]])
+        else:
+            total_a, cx, cy = 0, 0, 0
+            for ext in all_exterior:
+                c = polygon_centroid([ext])
+                a = polygon_area_utm([ext])
+                cx += c[0] * a
+                cy += c[1] * a
+                total_a += a
+            if total_a > 0:
+                cx /= total_a
+                cy /= total_a
+
+        longitude = round(cx, 6)
+        latitude = round(cy, 6)
+        area_ha = round(sum(polygon_area_utm(rings) for rings in polygon_rings) / 10000.0, 4)
+        conn.execute(
+            "UPDATE features SET Longitude = ?, Latitude = ?, Area_Ha = ? WHERE fid = ?",
+            (longitude, latitude, area_ha, fid))
+        recalc_count += 1
+
+    conn.commit()
+    print(f"    Recalculated Longitude/Latitude/Area_Ha for {recalc_count} features")
+
     total = conn.execute("SELECT COUNT(*) FROM features").fetchone()[0]
     prv = conn.execute("SELECT COUNT(*) FROM features WHERE Status='Private'").fetchone()[0]
     apl = conn.execute("SELECT COUNT(*) FROM features WHERE Status='APL'").fetchone()[0]
@@ -969,6 +1134,28 @@ def run_conversion(base_dir: Path) -> str:
         old_stdout = sys.stdout
         sys.stdout = buf
         postprocess_district_file(gpkg_path, info["Province"], info["District"], kml_path)
+        sys.stdout = old_stdout
+        log()
+        java_gpkgs.append((gpkg_path, clean_name))
+
+    # ── Step 2c: Post-process Additional Polygons files ──
+    log("=" * 60)
+    log("Post-processing Additional Polygons files\n")
+
+    for kml_path in kml_files:
+        name = kml_path.stem
+        if name not in ADDITIONAL_STEMS:
+            continue
+        info = ADDITIONAL_FILE_MAP[name]
+        clean_name = RENAME_MAP[name]
+        gpkg_path = output_dir / f"{clean_name}.gpkg"
+        if not gpkg_path.exists():
+            continue
+
+        log(f"  Post-processing: {clean_name}.gpkg (Province={info['Province']}, District={info['District']})")
+        old_stdout = sys.stdout
+        sys.stdout = buf
+        postprocess_additional_file(gpkg_path, info["Province"], info["District"], clean_name, kml_path)
         sys.stdout = old_stdout
         log()
         java_gpkgs.append((gpkg_path, clean_name))
