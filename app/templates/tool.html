@@ -5,71 +5,84 @@
 <h2>{{ tool.name }}</h2>
 <p class="tool-description">{{ tool.description }}</p>
 
-<section class="upload-section tool-upload-section">
-    <p class="section-label">{{ tool.input_label }}</p>
-    <form method="post" action="/tools/{{ tool.id }}/upload" enctype="multipart/form-data" id="upload-form">
-        <div class="upload-area" id="drop-zone">
-            <input type="file" name="files" accept="{{ tool.input_extension }}" multiple id="file-input">
-            <span class="upload-text" id="upload-text">{{ tool.drop_text }}</span>
+<div class="conversion-sections">
+    {% for section in tool.sections %}
+    <section class="conversion-section">
+        <p class="section-label">{{ section.title }}</p>
+        <h3 class="section-heading">{{ section.title }}</h3>
+        <p class="section-description">{{ section.description }}</p>
+
+        <div class="tool-input-block">
+            <p class="input-label">{{ section.input_label }}</p>
+            <form method="post" action="/tools/{{ section.id }}/upload" enctype="multipart/form-data" id="upload-form-{{ section.id }}">
+                <div class="upload-area" id="drop-zone-{{ section.id }}">
+                    <input type="file" name="files" accept="{{ section.input_extension }}" multiple id="file-input-{{ section.id }}">
+                    <span class="upload-text" id="upload-text-{{ section.id }}">{{ section.drop_text }}</span>
+                </div>
+            </form>
+            {% if section.files %}
+            <div class="file-list">
+                {% for f in section.files %}
+                <div class="file-row">
+                    <span class="file-name">{{ f }}</span>
+                    <form method="post" action="/tools/{{ section.id }}/delete/{{ f }}" style="display:inline">
+                        <button type="submit" class="delete-btn">&times;</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty">{{ section.empty_text }}</p>
+            {% endif %}
         </div>
-    </form>
-    {% if tool.files %}
-    <div class="file-list">
-        {% for f in tool.files %}
-        <div class="file-row">
-            <span class="file-name">{{ f }}</span>
-            <form method="post" action="/tools/{{ tool.id }}/delete/{{ f }}" style="display:inline">
-                <button type="submit" class="delete-btn">&times;</button>
+
+        <div class="script-card run-card">
+            <div class="script-info">
+                <h3>Run {{ section.title }}</h3>
+                <p>Uploaded {{ section.input_extension }} files will be converted and packaged for download.</p>
+            </div>
+            <form method="post" action="/tools/{{ section.id }}/run">
+                <button type="submit" class="run-btn" {% if not section.has_files %}disabled{% endif %}>Run</button>
             </form>
         </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="empty">{{ tool.empty_text }}</p>
-    {% endif %}
-</section>
-
-<section class="run-section">
-    <div class="script-card run-card">
-        <div class="script-info">
-            <h3>Run Conversion</h3>
-            <p>Uploaded {{ tool.input_extension }} files will be converted and packaged for download.</p>
-        </div>
-        <form method="post" action="/tools/{{ tool.id }}/run">
-            <button type="submit" class="run-btn" {% if not tool.has_files %}disabled{% endif %}>Run</button>
-        </form>
-    </div>
-</section>
+    </section>
+    {% endfor %}
+</div>
 
 <a href="/" class="back-link">&larr; Back to tools</a>
 
 <script>
-const form = document.getElementById('upload-form');
-const zone = document.getElementById('drop-zone');
-const input = document.getElementById('file-input');
-const text = document.getElementById('upload-text');
-const extension = '{{ tool.input_extension }}';
+function wireUpload(scriptId, extension) {
+    const form = document.getElementById(`upload-form-${scriptId}`);
+    const zone = document.getElementById(`drop-zone-${scriptId}`);
+    const input = document.getElementById(`file-input-${scriptId}`);
+    const text = document.getElementById(`upload-text-${scriptId}`);
 
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-zone.addEventListener('drop', e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const dt = new DataTransfer();
-    for (const f of e.dataTransfer.files) {
-        if (f.name.toLowerCase().endsWith(extension)) dt.items.add(f);
-    }
-    if (dt.files.length) {
-        input.files = dt.files;
-        text.textContent = 'Uploading...';
-        form.submit();
-    }
-});
-input.addEventListener('change', () => {
-    if (input.files.length) {
-        text.textContent = 'Uploading...';
-        form.submit();
-    }
-});
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const dt = new DataTransfer();
+        for (const f of e.dataTransfer.files) {
+            if (f.name.toLowerCase().endsWith(extension)) dt.items.add(f);
+        }
+        if (dt.files.length) {
+            input.files = dt.files;
+            text.textContent = 'Uploading...';
+            form.submit();
+        }
+    });
+    input.addEventListener('change', () => {
+        if (input.files.length) {
+            text.textContent = 'Uploading...';
+            form.submit();
+        }
+    });
+}
+
+{% for section in tool.sections %}
+wireUpload('{{ section.id }}', '{{ section.input_extension }}');
+{% endfor %}
 </script>
 {% endblock %}

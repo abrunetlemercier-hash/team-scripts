@@ -12,6 +12,13 @@ from app.models import RunResponse, ScriptInfo
 from app.registry import discover_scripts, get_all_scripts, get_script
 
 BASE_DIR = Path(__file__).resolve().parent
+CONVERSION_TOOL_ID = "gpkg-kml-conversion"
+CONVERSION_TOOL = {
+    "id": CONVERSION_TOOL_ID,
+    "name": "GPKG - KML conversion",
+    "description": "Convert spatial files between GeoPackage and KML formats.",
+    "script_ids": ["gpkg_to_kml", "kml_to_gpkg"],
+}
 INPUT_CONFIG = {
     "kml": {
         "dir": KML_DIR,
@@ -62,30 +69,42 @@ def tool_context(script_id: str, script):
     }
 
 
+def conversion_tool_context():
+    scripts = get_all_scripts()
+    sections = []
+    for script_id in CONVERSION_TOOL["script_ids"]:
+        script = scripts.get(script_id)
+        if script:
+            section = tool_context(script_id, script)
+            section["title"] = "GPKG to KML" if script_id == "gpkg_to_kml" else "KML to GPKG"
+            sections.append(section)
+    return {
+        "id": CONVERSION_TOOL["id"],
+        "name": CONVERSION_TOOL["name"],
+        "description": CONVERSION_TOOL["description"],
+        "sections": sections,
+    }
+
+
 # --- HTML routes ---
 
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage(request: Request):
-    scripts = get_all_scripts()
-    script_list = []
-    for sid, s in scripts.items():
-        script_list.append(tool_context(sid, s))
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "scripts": script_list},
+        {"request": request, "tools": [CONVERSION_TOOL]},
     )
 
 
-@app.get("/tools/{script_id}", response_class=HTMLResponse)
-async def tool_page(request: Request, script_id: str):
-    script = get_script(script_id)
-    if not script:
+@app.get("/tools/{tool_id}", response_class=HTMLResponse)
+async def tool_page(request: Request, tool_id: str):
+    if tool_id != CONVERSION_TOOL_ID:
         return templates.TemplateResponse(
             "result.html",
             {
                 "request": request,
-                "script_name": script_id,
+                "script_name": tool_id,
                 "result": None,
                 "error": "Tool not found",
                 "back_url": "/",
@@ -94,7 +113,7 @@ async def tool_page(request: Request, script_id: str):
         )
     return templates.TemplateResponse(
         "tool.html",
-        {"request": request, "tool": tool_context(script_id, script)},
+        {"request": request, "tool": conversion_tool_context()},
     )
 
 
@@ -115,7 +134,7 @@ async def upload_tool_files(script_id: str, files: List[UploadFile] = File(...))
             dest = input_dir / Path(f.filename).name
             content = await f.read()
             dest.write_bytes(content)
-    return RedirectResponse(url=f"/tools/{script_id}", status_code=303)
+    return RedirectResponse(url=f"/tools/{CONVERSION_TOOL_ID}", status_code=303)
 
 
 @app.post("/tools/{script_id}/delete/{filename}")
@@ -129,7 +148,7 @@ async def delete_tool_file(script_id: str, filename: str):
     filepath = config["dir"] / Path(filename).name
     if filepath.exists() and filepath.suffix.lower() == config["extension"]:
         filepath.unlink()
-    return RedirectResponse(url=f"/tools/{script_id}", status_code=303)
+    return RedirectResponse(url=f"/tools/{CONVERSION_TOOL_ID}", status_code=303)
 
 
 @app.post("/tools/{script_id}/run", response_class=HTMLResponse)
@@ -162,7 +181,7 @@ async def run_script_html(request: Request, script_id: str):
             "script_name": script.name,
             "result": result,
             "download_url": download_url,
-            "back_url": f"/tools/{script_id}",
+            "back_url": f"/tools/{CONVERSION_TOOL_ID}",
         },
     )
 

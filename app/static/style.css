@@ -228,6 +228,43 @@ h2 {
     margin-bottom: 3rem;
 }
 
+.conversion-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+
+.conversion-section {
+    border-top: 1px solid #000;
+    padding-top: 2rem;
+}
+
+.section-heading {
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.75rem;
+}
+
+.section-description {
+    color: #555;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+.tool-input-block {
+    margin-bottom: 2rem;
+}
+
+.input-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 0.75rem;
+}
+
 .upload-section {
     margin-top: 4rem;
 }

@@ -1,6 +1,6 @@
 # KML - GPKG conversion
 
-Tool page: `/tools/kml_to_gpkg`
+Tool page: `/tools/gpkg-kml-conversion`
 
 Implementation:
 - `scripts/kml_to_gpkg.py`
