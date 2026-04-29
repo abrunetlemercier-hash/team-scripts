@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.config import KML_DIR, PROJECT_ROOT
+from app.config import GPKG_DIR, KML_DIR
 from app.models import RunResponse, ScriptInfo
 from app.registry import discover_scripts, get_all_scripts, get_script
 
@@ -17,6 +17,7 @@ BASE_DIR = Path(__file__).resolve().parent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     KML_DIR.mkdir(parents=True, exist_ok=True)
+    GPKG_DIR.mkdir(parents=True, exist_ok=True)
     discover_scripts()
     yield
 
@@ -33,14 +34,23 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 @app.get("/", response_class=HTMLResponse)
 async def homepage(request: Request):
     scripts = get_all_scripts()
-    script_list = [
-        {"id": sid, "name": s.name, "description": s.description}
-        for sid, s in scripts.items()
-    ]
-    kml_files = sorted(f.name for f in KML_DIR.glob("*.kml"))
+    files_by_type = {
+        "kml": sorted(f.name for f in KML_DIR.glob("*.kml")),
+        "gpkg": sorted(f.name for f in GPKG_DIR.glob("*.gpkg")),
+    }
+    script_list = []
+    for sid, s in scripts.items():
+        input_type = getattr(s, "input_type", "kml")
+        script_list.append({
+            "id": sid,
+            "name": s.name,
+            "description": s.description,
+            "input_type": input_type,
+            "has_files": bool(files_by_type.get(input_type, [])),
+        })
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "scripts": script_list, "kml_files": kml_files},
+        {"request": request, "scripts": script_list, "files_by_type": files_by_type},
     )
 
 
@@ -49,7 +59,18 @@ async def upload_kml(files: List[UploadFile] = File(...)):
     KML_DIR.mkdir(parents=True, exist_ok=True)
     for f in files:
         if f.filename and f.filename.lower().endswith(".kml"):
-            dest = KML_DIR / f.filename
+            dest = KML_DIR / Path(f.filename).name
+            content = await f.read()
+            dest.write_bytes(content)
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/upload-gpkg")
+async def upload_gpkg(files: List[UploadFile] = File(...)):
+    GPKG_DIR.mkdir(parents=True, exist_ok=True)
+    for f in files:
+        if f.filename and f.filename.lower().endswith(".gpkg"):
+            dest = GPKG_DIR / Path(f.filename).name
             content = await f.read()
             dest.write_bytes(content)
     return RedirectResponse(url="/", status_code=303)
@@ -59,6 +80,14 @@ async def upload_kml(files: List[UploadFile] = File(...)):
 async def delete_kml(filename: str):
     filepath = KML_DIR / filename
     if filepath.exists() and filepath.suffix.lower() == ".kml":
+        filepath.unlink()
+    return RedirectResponse(url="/", status_code=303)
+
+
+@app.post("/delete-gpkg/{filename}")
+async def delete_gpkg(filename: str):
+    filepath = GPKG_DIR / filename
+    if filepath.exists() and filepath.suffix.lower() == ".gpkg":
         filepath.unlink()
     return RedirectResponse(url="/", status_code=303)
 

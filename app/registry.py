@@ -5,6 +5,10 @@ from pathlib import Path
 from scripts._base import Script
 
 _registry: dict[str, Script] = {}
+SCRIPT_ORDER = {
+    "kml_to_gpkg": 0,
+    "gpkg_to_kml": 1,
+}
 
 
 def discover_scripts() -> None:
@@ -12,7 +16,12 @@ def discover_scripts() -> None:
     _registry.clear()
     scripts_path = Path(__file__).resolve().parent.parent / "scripts"
 
-    for module_info in pkgutil.iter_modules([str(scripts_path)]):
+    modules = sorted(
+        pkgutil.iter_modules([str(scripts_path)]),
+        key=lambda info: (SCRIPT_ORDER.get(info.name, 100), info.name),
+    )
+
+    for module_info in modules:
         if module_info.name.startswith("_"):
             continue
         module = importlib.import_module(f"scripts.{module_info.name}")

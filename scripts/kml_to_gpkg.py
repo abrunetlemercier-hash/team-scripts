@@ -1180,6 +1180,7 @@ def run_conversion(base_dir: Path) -> str:
 class KmlToGpkgScript:
     name = "KML to GeoPackage"
     description = "Convert uploaded KML files to GeoPackage format with attribute extraction and Java province post-processing."
+    input_type = "kml"
 
     async def run(self) -> ScriptResult:
         import shutil
