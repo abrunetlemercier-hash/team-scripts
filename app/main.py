@@ -12,6 +12,22 @@ from app.models import RunResponse, ScriptInfo
 from app.registry import discover_scripts, get_all_scripts, get_script
 
 BASE_DIR = Path(__file__).resolve().parent
+INPUT_CONFIG = {
+    "kml": {
+        "dir": KML_DIR,
+        "extension": ".kml",
+        "label": "KML Files",
+        "empty": "No KML files uploaded yet.",
+        "drop_text": "Drop .kml files here or click to browse",
+    },
+    "gpkg": {
+        "dir": GPKG_DIR,
+        "extension": ".gpkg",
+        "label": "GPKG Files",
+        "empty": "No GPKG files uploaded yet.",
+        "drop_text": "Drop .gpkg files here or click to browse",
+    },
+}
 
 
 @asynccontextmanager
@@ -28,71 +44,95 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
 
+def tool_context(script_id: str, script):
+    input_type = getattr(script, "input_type", "kml")
+    config = INPUT_CONFIG[input_type]
+    files = sorted(f.name for f in config["dir"].glob(f"*{config['extension']}"))
+    return {
+        "id": script_id,
+        "name": script.name,
+        "description": script.description,
+        "input_type": input_type,
+        "input_label": config["label"],
+        "input_extension": config["extension"],
+        "drop_text": config["drop_text"],
+        "empty_text": config["empty"],
+        "files": files,
+        "has_files": bool(files),
+    }
+
+
 # --- HTML routes ---
 
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage(request: Request):
     scripts = get_all_scripts()
-    files_by_type = {
-        "kml": sorted(f.name for f in KML_DIR.glob("*.kml")),
-        "gpkg": sorted(f.name for f in GPKG_DIR.glob("*.gpkg")),
-    }
     script_list = []
     for sid, s in scripts.items():
-        input_type = getattr(s, "input_type", "kml")
-        script_list.append({
-            "id": sid,
-            "name": s.name,
-            "description": s.description,
-            "input_type": input_type,
-            "has_files": bool(files_by_type.get(input_type, [])),
-        })
+        script_list.append(tool_context(sid, s))
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "scripts": script_list, "files_by_type": files_by_type},
+        {"request": request, "scripts": script_list},
     )
 
 
-@app.post("/upload")
-async def upload_kml(files: List[UploadFile] = File(...)):
-    KML_DIR.mkdir(parents=True, exist_ok=True)
+@app.get("/tools/{script_id}", response_class=HTMLResponse)
+async def tool_page(request: Request, script_id: str):
+    script = get_script(script_id)
+    if not script:
+        return templates.TemplateResponse(
+            "result.html",
+            {
+                "request": request,
+                "script_name": script_id,
+                "result": None,
+                "error": "Tool not found",
+                "back_url": "/",
+            },
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        "tool.html",
+        {"request": request, "tool": tool_context(script_id, script)},
+    )
+
+
+@app.post("/tools/{script_id}/upload")
+async def upload_tool_files(script_id: str, files: List[UploadFile] = File(...)):
+    script = get_script(script_id)
+    if not script:
+        return RedirectResponse(url="/", status_code=303)
+
+    input_type = getattr(script, "input_type", "kml")
+    config = INPUT_CONFIG[input_type]
+    input_dir = config["dir"]
+    extension = config["extension"]
+    input_dir.mkdir(parents=True, exist_ok=True)
+
     for f in files:
-        if f.filename and f.filename.lower().endswith(".kml"):
-            dest = KML_DIR / Path(f.filename).name
+        if f.filename and f.filename.lower().endswith(extension):
+            dest = input_dir / Path(f.filename).name
             content = await f.read()
             dest.write_bytes(content)
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=f"/tools/{script_id}", status_code=303)
 
 
-@app.post("/upload-gpkg")
-async def upload_gpkg(files: List[UploadFile] = File(...)):
-    GPKG_DIR.mkdir(parents=True, exist_ok=True)
-    for f in files:
-        if f.filename and f.filename.lower().endswith(".gpkg"):
-            dest = GPKG_DIR / Path(f.filename).name
-            content = await f.read()
-            dest.write_bytes(content)
-    return RedirectResponse(url="/", status_code=303)
+@app.post("/tools/{script_id}/delete/{filename}")
+async def delete_tool_file(script_id: str, filename: str):
+    script = get_script(script_id)
+    if not script:
+        return RedirectResponse(url="/", status_code=303)
 
-
-@app.post("/delete-kml/{filename}")
-async def delete_kml(filename: str):
-    filepath = KML_DIR / filename
-    if filepath.exists() and filepath.suffix.lower() == ".kml":
+    input_type = getattr(script, "input_type", "kml")
+    config = INPUT_CONFIG[input_type]
+    filepath = config["dir"] / Path(filename).name
+    if filepath.exists() and filepath.suffix.lower() == config["extension"]:
         filepath.unlink()
-    return RedirectResponse(url="/", status_code=303)
+    return RedirectResponse(url=f"/tools/{script_id}", status_code=303)
 
 
-@app.post("/delete-gpkg/{filename}")
-async def delete_gpkg(filename: str):
-    filepath = GPKG_DIR / filename
-    if filepath.exists() and filepath.suffix.lower() == ".gpkg":
-        filepath.unlink()
-    return RedirectResponse(url="/", status_code=303)
-
-
-@app.post("/run/{script_id}", response_class=HTMLResponse)
+@app.post("/tools/{script_id}/run", response_class=HTMLResponse)
 async def run_script_html(request: Request, script_id: str):
     script = get_script(script_id)
     if not script:
@@ -102,7 +142,8 @@ async def run_script_html(request: Request, script_id: str):
                 "request": request,
                 "script_name": script_id,
                 "result": None,
-                "error": "Script not found",
+                "error": "Tool not found",
+                "back_url": "/",
             },
             status_code=404,
         )
@@ -121,8 +162,14 @@ async def run_script_html(request: Request, script_id: str):
             "script_name": script.name,
             "result": result,
             "download_url": download_url,
+            "back_url": f"/tools/{script_id}",
         },
     )
+
+
+@app.post("/run/{script_id}", response_class=HTMLResponse)
+async def run_script_html_legacy(request: Request, script_id: str):
+    return await run_script_html(request, script_id)
 
 
 @app.get("/download/{filename}")

@@ -273,7 +273,7 @@ def run_conversion(base_dir: Path) -> tuple[str, str | None]:
 
 
 class GpkgToKmlScript:
-    name = "GPKG to KML"
+    name = "GPKG - KML conversion"
     description = "Convert uploaded GeoPackage files back to KML while preserving feature attributes."
     input_type = "gpkg"
 

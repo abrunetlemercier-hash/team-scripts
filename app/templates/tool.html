@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}{{ tool.name }} - Apolownia Tools{% endblock %}
+{% block content %}
+<p class="section-label">Tool</p>
+<h2>{{ tool.name }}</h2>
+<p class="tool-description">{{ tool.description }}</p>
+
+<section class="upload-section tool-upload-section">
+    <p class="section-label">{{ tool.input_label }}</p>
+    <form method="post" action="/tools/{{ tool.id }}/upload" enctype="multipart/form-data" id="upload-form">
+        <div class="upload-area" id="drop-zone">
+            <input type="file" name="files" accept="{{ tool.input_extension }}" multiple id="file-input">
+            <span class="upload-text" id="upload-text">{{ tool.drop_text }}</span>
+        </div>
+    </form>
+    {% if tool.files %}
+    <div class="file-list">
+        {% for f in tool.files %}
+        <div class="file-row">
+            <span class="file-name">{{ f }}</span>
+            <form method="post" action="/tools/{{ tool.id }}/delete/{{ f }}" style="display:inline">
+                <button type="submit" class="delete-btn">&times;</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty">{{ tool.empty_text }}</p>
+    {% endif %}
+</section>
+
+<section class="run-section">
+    <div class="script-card run-card">
+        <div class="script-info">
+            <h3>Run Conversion</h3>
+            <p>Uploaded {{ tool.input_extension }} files will be converted and packaged for download.</p>
+        </div>
+        <form method="post" action="/tools/{{ tool.id }}/run">
+            <button type="submit" class="run-btn" {% if not tool.has_files %}disabled{% endif %}>Run</button>
+        </form>
+    </div>
+</section>
+
+<a href="/" class="back-link">&larr; Back to tools</a>
+
+<script>
+const form = document.getElementById('upload-form');
+const zone = document.getElementById('drop-zone');
+const input = document.getElementById('file-input');
+const text = document.getElementById('upload-text');
+const extension = '{{ tool.input_extension }}';
+
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const dt = new DataTransfer();
+    for (const f of e.dataTransfer.files) {
+        if (f.name.toLowerCase().endsWith(extension)) dt.items.add(f);
+    }
+    if (dt.files.length) {
+        input.files = dt.files;
+        text.textContent = 'Uploading...';
+        form.submit();
+    }
+});
+input.addEventListener('change', () => {
+    if (input.files.length) {
+        text.textContent = 'Uploading...';
+        form.submit();
+    }
+});
+</script>
+{% endblock %}

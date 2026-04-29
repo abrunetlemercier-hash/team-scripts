@@ -1,104 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 <p class="section-label">Internal Tools</p>
-<h2>Available Scripts ({{ scripts|length }})</h2>
+<h2>Available Tools ({{ scripts|length }})</h2>
 {% if scripts %}
 <div class="script-list">
     {% for s in scripts %}
-    <div class="script-card">
+    <a href="/tools/{{ s.id }}" class="script-card tool-link">
         <div class="script-info">
             <h3>{{ s.name }}</h3>
             <p>{{ s.description }}</p>
         </div>
-        <form method="post" action="/run/{{ s.id }}">
-            <button type="submit" class="run-btn" {% if not s.has_files %}disabled{% endif %}>Run</button>
-        </form>
-    </div>
+        <span class="run-btn">Open</span>
+    </a>
     {% endfor %}
 </div>
 {% else %}
-<p class="empty">No scripts found.</p>
+<p class="empty">No tools found.</p>
 {% endif %}
-
-<section class="upload-section">
-    <p class="section-label">KML Files</p>
-    <form method="post" action="/upload" enctype="multipart/form-data" id="upload-form">
-        <div class="upload-area" id="drop-zone">
-            <input type="file" name="files" accept=".kml" multiple id="file-input">
-            <span class="upload-text" id="upload-text">Drop .kml files here or click to browse</span>
-        </div>
-    </form>
-    {% if files_by_type.kml %}
-    <div class="file-list">
-        {% for f in files_by_type.kml %}
-        <div class="file-row">
-            <span class="file-name">{{ f }}</span>
-            <form method="post" action="/delete-kml/{{ f }}" style="display:inline">
-                <button type="submit" class="delete-btn">&times;</button>
-            </form>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="empty">No KML files uploaded yet.</p>
-    {% endif %}
-</section>
-
-<section class="upload-section">
-    <p class="section-label">GPKG Files</p>
-    <form method="post" action="/upload-gpkg" enctype="multipart/form-data" id="gpkg-upload-form">
-        <div class="upload-area" id="gpkg-drop-zone">
-            <input type="file" name="files" accept=".gpkg" multiple id="gpkg-file-input">
-            <span class="upload-text" id="gpkg-upload-text">Drop .gpkg files here or click to browse</span>
-        </div>
-    </form>
-    {% if files_by_type.gpkg %}
-    <div class="file-list">
-        {% for f in files_by_type.gpkg %}
-        <div class="file-row">
-            <span class="file-name">{{ f }}</span>
-            <form method="post" action="/delete-gpkg/{{ f }}" style="display:inline">
-                <button type="submit" class="delete-btn">&times;</button>
-            </form>
-        </div>
-        {% endfor %}
-    </div>
-    {% else %}
-    <p class="empty">No GPKG files uploaded yet.</p>
-    {% endif %}
-</section>
-
-<script>
-function wireUpload(formId, zoneId, inputId, textId, extension) {
-    const form = document.getElementById(formId);
-    const zone = document.getElementById(zoneId);
-    const input = document.getElementById(inputId);
-    const text = document.getElementById(textId);
-
-    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
-    zone.addEventListener('drop', e => {
-        e.preventDefault();
-        zone.classList.remove('drag-over');
-        const dt = new DataTransfer();
-        for (const f of e.dataTransfer.files) {
-            if (f.name.toLowerCase().endsWith(extension)) dt.items.add(f);
-        }
-        if (dt.files.length) {
-            input.files = dt.files;
-            text.textContent = 'Uploading...';
-            form.submit();
-        }
-    });
-    input.addEventListener('change', () => {
-        if (input.files.length) {
-            text.textContent = 'Uploading...';
-            form.submit();
-        }
-    });
-}
-
-wireUpload('upload-form', 'drop-zone', 'file-input', 'upload-text', '.kml');
-wireUpload('gpkg-upload-form', 'gpkg-drop-zone', 'gpkg-file-input', 'gpkg-upload-text', '.gpkg');
-</script>
 {% endblock %}

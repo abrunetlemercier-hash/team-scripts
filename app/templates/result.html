@@ -19,5 +19,5 @@
 <a href="{{ download_url }}" class="run-btn download-btn">Download Results (.zip)</a>
 {% endif %}
 {% endif %}
-<a href="/" class="back-link">&larr; Back to tools</a>
+<a href="{{ back_url or '/' }}" class="back-link">&larr; Back to tools</a>
 {% endblock %}
